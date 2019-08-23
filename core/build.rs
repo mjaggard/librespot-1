@@ -9,9 +9,9 @@ use std::io::Write;
 use std::path::PathBuf;
 
 fn main() {
-    let out = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let out = PathBuf::from(env::var("OUT_DIR").expect("path from env OUT_DIR"));
 
-    vergen::vergen(vergen::OutputFns::all()).unwrap();
+    vergen::vergen(vergen::OutputFns::all()).expect("vergen");
 
     let mut rng = rand::thread_rng();
     let build_id: String = ::std::iter::repeat(()).map(|()| rng.sample(Alphanumeric)).take(8).collect();
@@ -20,7 +20,7 @@ fn main() {
         .write(true)
         .append(true)
         .open(&out.join("version.rs"))
-        .unwrap();
+        .expect("version file");
 
     let build_id_fn = format!(
         "

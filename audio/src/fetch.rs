@@ -102,7 +102,7 @@ impl Future for AudioFileOpen {
                 Ok(Async::Ready(AudioFile::Streaming(file)))
             }
             AudioFileOpen::Cached(ref mut file) => {
-                let file = file.take().unwrap();
+                let file = file.take().expect("cached file taken");
                 Ok(Async::Ready(AudioFile::Cached(file)))
             }
         }
@@ -115,7 +115,7 @@ impl Future for AudioFileOpenStreaming {
 
     fn poll(&mut self) -> Poll<AudioFileStreaming, ChannelError> {
         loop {
-            let (id, data) = try_ready!(self.headers.poll()).unwrap();
+            let (id, data) = try_ready!(self.headers.poll()).expect("headers from audio file streaming");
 
             if id == 0x3 {
                 let size = BigEndian::read_u32(&data) as usize * 4;
@@ -178,16 +178,16 @@ fn request_chunk(session: &Session, file: FileId, index: usize) -> Channel {
     let (id, channel) = session.channel().allocate();
 
     let mut data: Vec<u8> = Vec::new();
-    data.write_u16::<BigEndian>(id).unwrap();
-    data.write_u8(0).unwrap();
-    data.write_u8(1).unwrap();
-    data.write_u16::<BigEndian>(0x0000).unwrap();
-    data.write_u32::<BigEndian>(0x00000000).unwrap();
-    data.write_u32::<BigEndian>(0x00009C40).unwrap();
-    data.write_u32::<BigEndian>(0x00020000).unwrap();
-    data.write(&file.0).unwrap();
-    data.write_u32::<BigEndian>(start).unwrap();
-    data.write_u32::<BigEndian>(end).unwrap();
+    data.write_u16::<BigEndian>(id).expect("writing data");
+    data.write_u8(0).expect("writing data");
+    data.write_u8(1).expect("writing data");
+    data.write_u16::<BigEndian>(0x0000).expect("writing data");
+    data.write_u32::<BigEndian>(0x00000000).expect("writing data");
+    data.write_u32::<BigEndian>(0x00009C40).expect("writing data");
+    data.write_u32::<BigEndian>(0x00020000).expect("writing data");
+    data.write(&file.0).expect("writing data");
+    data.write_u32::<BigEndian>(start).expect("writing data");
+    data.write_u32::<BigEndian>(end).expect("writing data");
 
     session.send_packet(0x8, data);
 
@@ -232,7 +232,7 @@ impl AudioFileFetch {
         assert!(new_index < self.shared.chunk_count);
 
         {
-            let bitmap = self.shared.bitmap.lock().unwrap();
+            let bitmap = self.shared.bitmap.lock().expect("lock shared bitmap");
             while bitmap.contains(new_index) {
                 new_index = (new_index + 1) % self.shared.chunk_count;
             }
@@ -255,10 +255,10 @@ impl AudioFileFetch {
     }
 
     fn finish(&mut self) {
-        let mut output = self.output.take().unwrap();
-        let complete_tx = self.complete_tx.take().unwrap();
+        let mut output = self.output.take().expect("output taken");
+        let complete_tx = self.complete_tx.take().expect("complete tx taken");
 
-        output.seek(SeekFrom::Start(0)).unwrap();
+        output.seek(SeekFrom::Start(0)).expect("output seek start");
         let _ = complete_tx.send(output);
     }
 }
@@ -296,7 +296,7 @@ impl Future for AudioFileFetch {
                     trace!("chunk {} / {} complete", self.index, self.shared.chunk_count);
 
                     let full = {
-                        let mut bitmap = self.shared.bitmap.lock().unwrap();
+                        let mut bitmap = self.shared.bitmap.lock().expect("shared bitmap locked");
                         bitmap.insert(self.index as usize);
                         self.shared.cond.notify_all();
 
@@ -331,9 +331,9 @@ impl Read for AudioFileStreaming {
         let offset = self.position as usize % CHUNK_SIZE;
         let len = min(output.len(), CHUNK_SIZE - offset);
 
-        let mut bitmap = self.shared.bitmap.lock().unwrap();
+        let mut bitmap = self.shared.bitmap.lock().expect("shared bitmap locked");
         while !bitmap.contains(index) {
-            bitmap = self.shared.cond.wait(bitmap).unwrap();
+            bitmap = self.shared.cond.wait(bitmap).expect("shared cond wait");
         }
         drop(bitmap);
 

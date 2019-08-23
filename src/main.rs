@@ -4,11 +4,8 @@ extern crate getopts;
 extern crate librespot;
 #[macro_use]
 extern crate log;
-extern crate rpassword;
 extern crate tokio_core;
-extern crate tokio_io;
 extern crate tokio_process;
-extern crate tokio_signal;
 extern crate url;
 extern crate sha1;
 extern crate hex;
@@ -23,7 +20,6 @@ use std::path::PathBuf;
 use std::process::exit;
 use std::str::FromStr;
 use tokio_core::reactor::{Core, Handle};
-use tokio_io::IoStream;
 use url::Url;
 
 use librespot::core::authentication::{get_credentials, Credentials};
@@ -32,7 +28,6 @@ use librespot::core::config::{ConnectConfig, DeviceType, SessionConfig};
 use librespot::core::session::Session;
 use librespot::core::version;
 
-use librespot::connect::discovery::{discovery, DiscoveryStream};
 use librespot::connect::spirc::{Spirc, SpircTask};
 use librespot::playback::audio_backend::{self, Sink, BACKENDS};
 use librespot::playback::config::{Bitrate, PlayerConfig};
@@ -97,7 +92,6 @@ struct Setup {
     connect_config: ConnectConfig,
     mixer_config: MixerConfig,
     credentials: Option<Credentials>,
-    enable_discovery: bool,
     zeroconf_port: u16,
     player_event_program: Option<String>,
 }
@@ -129,7 +123,6 @@ fn setup(args: &[String]) -> Setup {
         .optopt("p", "password", "Password", "PASSWORD")
         .optopt("", "proxy", "HTTP proxy to use when connecting", "PROXY")
         .optopt("", "ap-port", "Connect to AP with specified port. If no AP with that port are present fallback AP will be used. Available ports are usually 80, 443 and 4070", "AP_PORT")
-        .optflag("", "disable-discovery", "Disable discovery mode")
         .optopt(
             "",
             "backend",
@@ -262,17 +255,10 @@ fn setup(args: &[String]) -> Setup {
     let credentials = {
         let cached_credentials = cache.as_ref().and_then(Cache::credentials);
 
-        let password = |username: &String| -> String {
-            write!(stderr(), "Password for {}: ", username).unwrap();
-            stderr().flush().unwrap();
-            rpassword::read_password().unwrap()
-        };
-
         get_credentials(
             matches.opt_str("username"),
             matches.opt_str("password"),
             cached_credentials,
-            password,
         )
     };
 
@@ -337,8 +323,6 @@ fn setup(args: &[String]) -> Setup {
         }
     };
 
-    let enable_discovery = !matches.opt_present("disable-discovery");
-
     Setup {
         backend: backend,
         cache: cache,
@@ -347,7 +331,6 @@ fn setup(args: &[String]) -> Setup {
         connect_config: connect_config,
         credentials: credentials,
         device: device,
-        enable_discovery: enable_discovery,
         zeroconf_port: zeroconf_port,
         mixer: mixer,
         mixer_config: mixer_config,
@@ -365,9 +348,6 @@ struct Main {
     mixer: fn(Option<MixerConfig>) -> Box<Mixer>,
     mixer_config: MixerConfig,
     handle: Handle,
-
-    discovery: Option<DiscoveryStream>,
-    signal: IoStream<()>,
 
     spirc: Option<Spirc>,
     spirc_task: Option<SpircTask>,
@@ -393,22 +373,13 @@ impl Main {
             mixer_config: setup.mixer_config,
 
             connect: Box::new(futures::future::empty()),
-            discovery: None,
             spirc: None,
             spirc_task: None,
             shutdown: false,
-            signal: Box::new(tokio_signal::ctrl_c().flatten_stream()),
 
             player_event_channel: None,
             player_event_program: setup.player_event_program,
         };
-
-        if setup.enable_discovery {
-            let config = task.connect_config.clone();
-            let device_id = task.session_config.device_id.clone();
-
-            task.discovery = Some(discovery(&handle, config, device_id, setup.zeroconf_port).unwrap());
-        }
 
         if let Some(credentials) = setup.credentials {
             task.credentials(credentials);
@@ -440,14 +411,14 @@ impl Future for Main {
         loop {
             let mut progress = false;
 
-            if let Some(Async::Ready(Some(creds))) = self.discovery.as_mut().map(|d| d.poll().unwrap()) {
-                if let Some(ref spirc) = self.spirc {
-                    spirc.shutdown();
-                }
-                self.credentials(creds);
+//            if let Some(Async::Ready(Some(creds))) = self.discovery.as_mut().map(|d| d.poll().unwrap()) {
+//                if let Some(ref spirc) = self.spirc {
+//                    spirc.shutdown();
+//                }
+//                self.credentials(creds);
 
-                progress = true;
-            }
+//                progress = true;
+//            }
 
             if let Async::Ready(session) = self.connect.poll().unwrap() {
                 self.connect = Box::new(futures::future::empty());
@@ -472,22 +443,9 @@ impl Future for Main {
                 progress = true;
             }
 
-            if let Async::Ready(Some(())) = self.signal.poll().unwrap() {
                 trace!("Ctrl-C received");
-                if !self.shutdown {
-                    if let Some(ref spirc) = self.spirc {
-                        spirc.shutdown();
                     } else {
                         return Ok(Async::Ready(()));
-                    }
-                    self.shutdown = true;
-                } else {
-                    return Ok(Async::Ready(()));
-                }
-
-                progress = true;
-            }
-
             if let Some(ref mut spirc_task) = self.spirc_task {
                 if let Async::Ready(()) = spirc_task.poll().unwrap() {
                     if self.shutdown {

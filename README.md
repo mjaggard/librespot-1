@@ -1,6 +1,9 @@
 [![Build Status](https://travis-ci.org/librespot-org/librespot.svg?branch=master)](https://travis-ci.org/librespot-org/librespot)
 [![Gitter chat](https://badges.gitter.im/librespot-org/librespot.png)](https://gitter.im/librespot-org/spotify-connect-resources)
 
+# This version
+Compiles for Android by not allowed password reading at the command line and not using discovey on local networks.
+
 ## Request for maintainers
 Activity on librespot as of late has been somewhat limited. I’ve been busy with other projects, and have also bought a Spotify Connect speaker, hence my needs for librespot are diminished. It would be great for this project to live on though, and the many contributions that have been provided over the years clearly show that it’s used by more than a few. Thus, I’m requesting that anyone who would be interested in taking over the maintenance of this project leave a note in [#363](https://github.com/librespot-org/librespot/issues/363). Regular contributors have priority, but all interested parties invited. Also, I will not be the sole individual choosing a new maintainer, anyone who has contributed to librespot is welcome to suggest a new maintainer or offer support for an individual in the previously linked thread. After a few weeks, we’ll hopefully choose a new maintainer :)
 
@@ -81,7 +84,6 @@ This is a non exhaustive list of projects that either use or have modified libre
 - [plugin.audio.spotify](https://github.com/marcelveldt/plugin.audio.spotify) - A Kodi plugin for Spotify.
 - [raspotify](https://github.com/dtcooper/raspotify) - Spotify Connect client for the Raspberry Pi that Just Works™
 - [Spotifyd](https://github.com/Spotifyd/spotifyd) - A stripped down librespot UNIX daemon.
-- [Spotcontrol](https://github.com/badfortrains/spotcontrol) - A golang implementation of a Spotify Connect controller. No playback
-functionality.
+- [Spotcontrol](https://github.com/badfortrains/spotcontrol) - A golang implementation of a Spotify Connect controller. No playback functionality.
 - [librespot-java](https://github.com/devgianlu/librespot-java) - A Java port of librespot.
 - [ncspot](https://github.com/hrkfdn/ncspot) - Cross-platform ncurses Spotify client.
